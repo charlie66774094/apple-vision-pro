@@ -303,7 +303,7 @@
             // 当 val > 0 时，视为“手心” (Palm)
             // 增加 0.01 的阈值防止闪烁
             
-            const isBack = val < -0.01; 
+            const isBack = val > 0.01; 
 
             if (isBack) {
                 // === 手背模式：显示时间 ===
