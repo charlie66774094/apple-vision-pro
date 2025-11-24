@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Web Vision Pro - Hand Tracking</title>
+    <title>Web Vision Pro - Browser Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <style>
-        /* 保持之前的空间风格基础样式 */
+        /* === 核心基础样式 === */
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
             margin: 0; padding: 0;
@@ -19,7 +19,7 @@
             overflow: hidden;
             height: 100dvh;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: radial-gradient(circle at 50% 50%, #2b2b2b 0%, #000 100%);
+            background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000 100%);
         }
 
         .input_video { display: none; }
@@ -27,11 +27,13 @@
         /* 启动按钮 */
         #start-btn {
             position: absolute; z-index: 1000;
-            padding: 16px 32px; background: white; color: black;
+            padding: 16px 32px; background: rgba(255,255,255,0.9); color: black;
             border-radius: 50px; font-size: 18px; font-weight: 600;
             border: none; cursor: pointer;
-            box-shadow: 0 0 20px rgba(255,255,255,0.3);
+            box-shadow: 0 0 25px rgba(255,255,255,0.2);
+            transition: transform 0.2s;
         }
+        #start-btn:active { transform: scale(0.95); }
 
         /* 虚拟光标 */
         #cursor {
@@ -49,91 +51,117 @@
         #cursor.hidden { opacity: 0; }
         #cursor.clicking { width: 12px; height: 12px; background: #32d74b; }
 
-        /* === 新增：悬浮时间小窗 === */
+        /* 时间小窗 (手背触发) */
         #time-widget {
-            position: fixed;
-            top: 0; left: 0;
-            width: 140px; height: 60px;
-            /* 深度玻璃质感 */
-            background: rgba(40, 40, 40, 0.6);
-            backdrop-filter: blur(20px) saturate(150%);
-            -webkit-backdrop-filter: blur(20px) saturate(150%);
-            border-radius: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            
+            position: fixed; top: 0; left: 0;
+            width: 130px; height: 50px;
+            background: rgba(60, 60, 60, 0.7);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-radius: 25px; border: 1px solid rgba(255,255,255,0.2);
             display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: 600; font-size: 24px;
-            letter-spacing: 1px;
-            
-            z-index: 998;
-            pointer-events: none;
-            opacity: 0;
+            color: white; font-weight: 600; font-size: 20px;
+            z-index: 998; pointer-events: none; opacity: 0;
             transform: translate(-50%, -50%) scale(0.8);
-            transition: opacity 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: opacity 0.3s, transform 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
+        #time-widget.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
-        #time-widget.show {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-        }
-
-        #time-widget span {
-            background: linear-gradient(to bottom, #fff, #aaa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        /* 应用图标 */
-        .app-grid { display: flex; gap: 40px; transition: opacity 0.3s; }
+        /* === 应用网格 === */
+        .app-grid { display: flex; gap: 40px; transition: opacity 0.3s; perspective: 1000px; }
+        
         .app-icon {
             width: 100px; height: 100px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
             border-radius: 24px;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            color: white; border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: transform 0.2s, background 0.2s;
+            color: white; 
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-bottom: 3px solid rgba(255,255,255,0.1);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            transition: all 0.2s;
         }
-        .app-icon.hovered { background: rgba(255, 255, 255, 0.25); transform: scale(1.15); }
-        .icon-img { font-size: 32px; margin-bottom: 5px; }
-        .app-icon span { font-size: 12px; }
+        
+        /* 不同的图标背景色微调 */
+        #app-browser { background: linear-gradient(135deg, rgba(52, 199, 249, 0.3), rgba(0, 122, 255, 0.3)); }
+        #app-settings { background: linear-gradient(135deg, rgba(142, 142, 147, 0.3), rgba(99, 99, 102, 0.3)); }
+        #app-hello { background: linear-gradient(135deg, rgba(255, 149, 0, 0.3), rgba(255, 59, 48, 0.3)); }
 
-        /* 窗口 */
+        .app-icon.hovered {
+            transform: scale(1.15) translateY(-10px);
+            border-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.7);
+        }
+        .icon-img { font-size: 36px; margin-bottom: 5px; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.3));}
+        .app-icon span { font-size: 12px; font-weight: 500; opacity: 0.9; }
+
+        /* === 窗口通用 === */
         .window {
             position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%) scale(0.9);
-            width: 85%; max-width: 400px; height: 400px;
-            background: rgba(25, 25, 25, 0.9);
-            backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
-            border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 90%; max-width: 440px; height: 550px;
+            background: rgba(30, 30, 30, 0.9);
+            backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+            border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 40px 100px rgba(0,0,0,0.8);
             display: none; flex-direction: column; opacity: 0;
-            transition: opacity 0.3s, transform 0.3s; z-index: 100;
-            padding: 20px; color: white;
+            transition: opacity 0.3s, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 100; overflow: hidden;
         }
         .window.open { display: flex; opacity: 1; transform: translate(-50%, -50%) scale(1); }
-        .scroll-container { flex: 1; overflow-y: auto; padding: 10px 0; }
-        .setting-item { padding: 15px; margin: 5px 0; background: rgba(255,255,255,0.05); border-radius: 10px; }
-        .setting-item.hovered { background: rgba(255,255,255,0.15); }
-        .close-btn { margin-top: 10px; padding: 10px; background: #333; color: white; border-radius: 15px; border: none; width: 100%; }
-        .close-btn.hovered { background: #555; }
 
-        #status { position: absolute; bottom: 20px; color: rgba(255,255,255,0.3); font-size: 12px; }
+        /* 窗口顶部栏 */
+        .window-bar {
+            height: 44px; display: flex; align-items: center; justify-content: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05);
+            font-weight: 600; color: #fff; position: relative;
+        }
+        .url-bar {
+            background: rgba(0,0,0,0.2); padding: 4px 12px; border-radius: 8px;
+            font-size: 12px; color: #aaa; width: 60%; text-align: center;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+        }
+
+        /* 滚动内容区域 */
+        .scroll-container { flex: 1; overflow-y: auto; padding: 0; position: relative; }
+        
+        /* 设置项样式 */
+        .settings-content { padding: 10px; }
+        .setting-item { padding: 16px; margin: 8px 0; background: rgba(255,255,255,0.08); border-radius: 12px; color: #fff;}
+        .setting-item.hovered { background: rgba(255,255,255,0.2); }
+
+        /* 浏览器模拟内容 */
+        .browser-content { padding: 15px; color: #ddd; }
+        .search-result { margin-bottom: 25px; padding: 10px; border-radius: 8px; }
+        .search-result.hovered { background: rgba(255,255,255,0.05); }
+        .res-title { color: #64d2ff; font-size: 18px; margin-bottom: 4px; display: block; text-decoration: none;}
+        .res-url { color: #aaa; font-size: 12px; margin-bottom: 4px; }
+        .res-desc { color: #ccc; font-size: 14px; line-height: 1.4; }
+
+        /* 关闭按钮区域 */
+        .window-footer { padding: 15px; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); }
+        .close-btn { 
+            width: 100%; padding: 12px; background: rgba(60,60,60,0.8); 
+            color: white; border: none; border-radius: 12px; font-weight: 600; 
+        }
+        .close-btn.hovered { background: #fff; color: #000; }
+
+        #status { position: absolute; bottom: 20px; color: rgba(255,255,255,0.3); font-size: 12px; pointer-events: none;}
     </style>
 </head>
 <body>
 
     <video class="input_video" playsinline></video>
-    <button id="start-btn">开启空间体验</button>
-    
+    <button id="start-btn">开启空间</button>
     <div id="cursor"></div>
-    
-    <!-- 新增：时间小窗 -->
-    <div id="time-widget">
-        <span id="clock-text">12:00</span>
-    </div>
+    <div id="time-widget"><span id="clock-text">12:00</span></div>
 
+    <!-- 主菜单 -->
     <div class="app-grid" id="main-menu">
+        <div class="app-icon" id="app-browser">
+            <div class="icon-img">🧭</div><span>浏览器</span>
+        </div>
         <div class="app-icon" id="app-settings">
             <div class="icon-img">⚙️</div><span>设置</span>
         </div>
@@ -142,29 +170,84 @@
         </div>
     </div>
 
-    <div class="window" id="window-settings">
-        <h3>设置</h3>
-        <div class="scroll-container">
-            <div class="setting-item">飞行模式</div>
-            <div class="setting-item">无线局域网</div>
-            <div class="setting-item">蓝牙</div>
-            <div class="setting-item">移动网络</div>
-            <div class="setting-item">个人热点</div>
-            <div class="setting-item">通知</div>
-            <div class="setting-item">声音</div>
-            <div class="setting-item">专注模式</div>
-            <div class="setting-item">屏幕使用时间</div>
+    <!-- 浏览器窗口 -->
+    <div class="window" id="window-browser">
+        <div class="window-bar">
+            <div class="url-bar">🔒 apple.com/vision-pro</div>
         </div>
-        <button class="close-btn">关闭</button>
+        <div class="scroll-container browser-content">
+            <div style="text-align:center; margin: 20px 0;">
+                <h1 style="font-size:32px; margin-bottom:10px;">Google</h1>
+                <div style="background:white; height:40px; border-radius:20px; width:80%; margin:0 auto; display:flex; align-items:center; padding-left:15px; color:#333;">Vision Pro</div>
+            </div>
+            
+            <!-- 模拟搜索结果 (纯DIV，禁止跳转) -->
+            <div class="search-result">
+                <div class="res-url">https://www.apple.com.cn › vision-pro</div>
+                <div class="res-title">Apple Vision Pro - Apple (中国大陆)</div>
+                <div class="res-desc">欢迎来到空间计算时代。Apple Vision Pro 将数字内容无缝融入你的实体空间，让你能做从未做过的事。</div>
+            </div>
+
+            <div class="search-result">
+                <div class="res-url">https://en.wikipedia.org › wiki › Vision_Pro</div>
+                <div class="res-title">Apple Vision Pro - Wikipedia</div>
+                <div class="res-desc">The Apple Vision Pro is a mixed-reality headset developed by Apple Inc. It was announced on June 5, 2023.</div>
+            </div>
+
+            <div class="search-result">
+                <div class="res-url">https://www.theverge.com › reviews</div>
+                <div class="res-title">Apple Vision Pro review: magic, until it's not</div>
+                <div class="res-desc">The Vision Pro is an astounding product. It is the best consumer headset anyone has ever made.</div>
+            </div>
+            
+             <div class="search-result">
+                <div class="res-url">https://www.youtube.com › watch</div>
+                <div class="res-title">Using Apple Vision Pro: What It's Actually Like!</div>
+                <div class="res-desc">MKBHD gives his full thoughts on using the headset for 2 weeks straight. The pros, the cons, and the weight.</div>
+            </div>
+            
+            <div style="height: 100px;"></div>
+        </div>
+        <div class="window-footer">
+            <button class="close-btn">关闭浏览器</button>
+        </div>
     </div>
 
+    <!-- 设置窗口 -->
+    <div class="window" id="window-settings">
+        <div class="window-bar">设置</div>
+        <div class="scroll-container settings-content">
+            <div class="setting-item">✈️ 飞行模式</div>
+            <div class="setting-item">📡 无线局域网</div>
+            <div class="setting-item">🦷 蓝牙</div>
+            <div class="setting-item">📱 蜂窝网络</div>
+            <div class="setting-item">🔔 通知</div>
+            <div class="setting-item">🔊 声音与触感</div>
+            <div class="setting-item">🌙 专注模式</div>
+            <div class="setting-item">⏳ 屏幕使用时间</div>
+            <div class="setting-item">⚙️ 通用</div>
+            <div class="setting-item">🕹️ 控制中心</div>
+            <div style="height: 50px;"></div>
+        </div>
+        <div class="window-footer">
+            <button class="close-btn">关闭设置</button>
+        </div>
+    </div>
+
+    <!-- Hello 窗口 -->
     <div class="window" id="window-hello">
-        <h3>Hello World</h3>
-        <p>翻转手背查看时间。</p>
-        <button class="close-btn">关闭</button>
+        <div class="window-bar">Hello</div>
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:20px;">
+            <h1>👋</h1>
+            <h2>Hello World</h2>
+            <p style="color:#aaa; line-height:1.6;">翻转手背查看时间<br>捏合手指进行点击<br>按住并拖动进行滚动</p>
+        </div>
+        <div class="window-footer">
+            <button class="close-btn">关闭</button>
+        </div>
     </div>
 
-    <div id="status">等待启动...</div>
+    <div id="status">等待相机授权...</div>
 
     <script>
         const cursor = document.getElementById('cursor');
@@ -172,13 +255,8 @@
         const clockText = document.getElementById('clock-text');
         
         let cursorX = window.innerWidth/2, cursorY = window.innerHeight/2;
-        let isPinching = false;
-        let isDragging = false;
-        let activeScrollElement = null;
-        let dragStartY = 0, initialScrollTop = 0;
-
-        // 平滑移动变量
-        let targetWidgetX = 0, targetWidgetY = 0;
+        let isPinching = false, isDragging = false;
+        let activeScrollElement = null, dragStartY = 0, initialScrollTop = 0;
         let currentWidgetX = 0, currentWidgetY = 0;
 
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
@@ -197,47 +275,9 @@
 
         document.getElementById('start-btn').addEventListener('click', function() {
             this.style.display = 'none';
-            document.getElementById('status').innerText = "启动摄像头...";
+            document.getElementById('status').innerText = "系统启动中...";
             camera.start();
         });
-
-        // 核心：判断是手心还是手背
-        // 返回 true 代表手背对着摄像头
-        function isBackOfHand(landmarks) {
-            // 使用叉积的 Z 分量原理（简化版）
-            // 我们取三个点：0(手腕), 5(食指根), 17(小指根)
-            // 在屏幕坐标系中：
-            // 如果是右手（MediaPipe自拍模式可能识别为左手），手心朝向时，点5在点17的左边（或右边，取决于具体镜像）
-            // 最稳健的方法是计算 (x5 - x0)*(y17 - y0) - (y5 - y0)*(x17 - x0)
-            
-            const p0 = landmarks[0];
-            const p5 = landmarks[5];
-            const p17 = landmarks[17];
-
-            // 2D 叉积 (Cross Product 2D)
-            // 结果 > 0 和 < 0 分别代表顺时针和逆时针顺序
-            const crossProduct = (p5.x - p0.x) * (p17.y - p0.y) - (p5.y - p0.y) * (p17.x - p0.x);
-
-            // 阈值测试：你需要根据你的具体镜像设置调整这个正负号
-            // 在 MediaPipe 默认自拍镜像模式下：
-            // 结果通常 < 0 是手心， > 0 是手背 (或者反之，取决于左右手)
-            // 经过实测，对于右手：手心时值通常为负，手背时值为正。
-            // 为了简化，我们假设这是一个通用的“翻转”检测。
-            // 注意：左右手这个值的符号是相反的。
-            
-            // 这里我们用一个简化的绝对值判断，或者配合 Handedness（这里为了代码简单，假设用右手）
-            // 如果是左手玩，可能需要反转逻辑。
-            
-            // 简单的启发式逻辑：
-            // 如果是手背，通常 p17(小指) 的 x 坐标会“跨过” p5(食指)
-            // 让我们使用这个逻辑，因为它比叉积更直观：
-            // 正常手心对着自己（屏幕）：小指在食指右侧（右手）。
-            // 翻过来手背对着屏幕：小指在食指左侧。
-            
-            // 但是为了更准确，我们还是用叉积。
-            // 假设是右手：
-            return crossProduct > 0; // 这个值可能需要根据你的实际体验微调符号
-        }
 
         function onResults(results) {
             if (!results.multiHandLandmarks?.length) {
@@ -247,100 +287,96 @@
             }
 
             const landmarks = results.multiHandLandmarks[0];
-            const handedness = results.multiHandedness[0].label; // "Left" or "Right"
-
-            // 计算是否是手背
-            // 注意：MediaPipe 的 Left/Right 在自拍模式下可能有点反直觉
-            // 我们可以动态调整阈值，但这里先写死逻辑供测试
-            let isBack = false;
-            
             const p0 = landmarks[0];
             const p5 = landmarks[5];
             const p17 = landmarks[17];
+
+            // === 手势翻转逻辑 (已固定为用户要求的版本) ===
+            // 计算 2D 叉积 (Cross Product)
+            // 公式: (x5 - x0)*(y17 - y0) - (y5 - y0)*(x17 - x0)
             const val = (p5.x - p0.x) * (p17.y - p0.y) - (p5.y - p0.y) * (p17.x - p0.x);
+
+            // 【注】：根据用户反馈，此处逻辑已修正。
+            // 之前的逻辑：Left模式下 val < 0 是手背
+            // 现在的逻辑：直接使用 Left Handedness 的修正版。
+            // 当 val < 0 时，视为“手背” (Back of Hand)
+            // 当 val > 0 时，视为“手心” (Palm)
+            // 增加 0.01 的阈值防止闪烁
             
-            // 针对 MediaPipe 的逻辑：
-            // 如果是 Right Hand (系统判定)：Val < 0 是手心, Val > 0 是手背
-            // 如果是 Left Hand (系统判定)：Val > 0 是手心, Val < 0 是手背
-            if (handedness === 'Left') {
-                isBack = val > 0;
-            } else {
-                isBack = val < 0;
-            }
-            
-            // 强制修正：有时候 MediaPipe 分类会跳变，这里加一个简单的逻辑：
-            // 仅仅当 val 的绝对值足够大（手掌张开）才判断，防止握拳时误判
-            if (Math.abs(val) < 0.01) isBack = false; // 忽略模糊状态
+            const isBack = val < -0.01; 
 
             if (isBack) {
                 // === 手背模式：显示时间 ===
                 cursor.classList.add('hidden');
                 
-                // 更新时间
                 const now = new Date();
                 clockText.innerText = now.getHours().toString().padStart(2,'0') + ":" + now.getMinutes().toString().padStart(2,'0');
 
-                // 计算小窗位置：跟随手腕(0) 或 手背中心(9)
-                // 这里用手背中心 (Landmark 9) 上方一点点
-                const wrist = landmarks[0];
+                // 位置跟随手背中心 (Landmark 9)
                 const middleFinger = landmarks[9];
-                
-                // 简单的平滑移动
-                targetWidgetX = (1 - middleFinger.x) * window.innerWidth;
-                targetWidgetY = middleFinger.y * window.innerHeight - 80; // 上移80像素
+                let tx = (1 - middleFinger.x) * window.innerWidth;
+                let ty = middleFinger.y * window.innerHeight - 80;
 
-                currentWidgetX += (targetWidgetX - currentWidgetX) * 0.1;
-                currentWidgetY += (targetWidgetY - currentWidgetY) * 0.1;
+                // 简单的位置平滑
+                currentWidgetX += (tx - currentWidgetX) * 0.15;
+                currentWidgetY += (ty - currentWidgetY) * 0.15;
 
                 timeWidget.style.left = `${currentWidgetX}px`;
                 timeWidget.style.top = `${currentWidgetY}px`;
                 timeWidget.classList.add('show');
 
             } else {
-                // === 手心模式：正常操作 ===
+                // === 手心模式：光标操作 ===
                 timeWidget.classList.remove('show');
                 cursor.classList.remove('hidden');
 
                 const indexTip = landmarks[8];
                 const thumbTip = landmarks[4];
 
-                // 移动光标
-                const sensitivity = 1.3;
+                // 光标映射与平滑
+                const sensitivity = 1.4;
                 let rx = (1 - indexTip.x) * window.innerWidth;
                 let ry = indexTip.y * window.innerHeight;
                 rx = (rx - window.innerWidth/2)*sensitivity + window.innerWidth/2;
                 ry = (ry - window.innerHeight/2)*sensitivity + window.innerHeight/2;
                 
-                // 平滑
-                cursorX += (rx - cursorX) * 0.4;
-                cursorY += (ry - cursorY) * 0.4;
+                cursorX += (rx - cursorX) * 0.45;
+                cursorY += (ry - cursorY) * 0.45;
                 cursor.style.left = `${cursorX}px`;
                 cursor.style.top = `${cursorY}px`;
 
-                // 捏合逻辑
+                // 捏合检测
                 const dist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
                 const isPinchNow = dist < 0.06;
 
                 if (isPinchNow) {
                     if (!isPinching) {
+                        // === 捏合开始 ===
                         isPinching = true;
                         cursor.classList.add('clicking');
                         
                         const el = document.elementFromPoint(cursorX, cursorY);
+                        // 查找最近的可滚动区域
                         const scrollable = el?.closest('.scroll-container');
+                        
                         if (scrollable) {
+                            // 进入拖拽滚动模式
                             isDragging = true;
                             activeScrollElement = scrollable;
                             dragStartY = cursorY;
                             initialScrollTop = scrollable.scrollTop;
                         } else {
+                            // 普通点击
                             handleTap(cursorX, cursorY);
                         }
                     } else if (isDragging && activeScrollElement) {
+                        // === 拖拽滚动中 ===
                         const dy = cursorY - dragStartY;
-                        activeScrollElement.scrollTop = initialScrollTop - dy * 2;
+                        // 2.5倍系数让滚动更轻松
+                        activeScrollElement.scrollTop = initialScrollTop - dy * 2.5;
                     }
                 } else {
+                    // === 捏合释放 ===
                     isPinching = false;
                     isDragging = false;
                     cursor.classList.remove('clicking');
@@ -350,31 +386,57 @@
             }
         }
 
+        // 悬停高亮逻辑
         function handleHover(x, y) {
             document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
             const el = document.elementFromPoint(x, y);
-            const target = el?.closest('.app-icon, .close-btn, .setting-item');
+            
+            // 支持的应用图标、关闭按钮、设置项、搜索结果
+            const target = el?.closest('.app-icon, .close-btn, .setting-item, .search-result');
             if (target) target.classList.add('hovered');
         }
 
+        // 点击逻辑
         function handleTap(x, y) {
             const el = document.elementFromPoint(x, y);
-            if (el?.closest('#app-settings')) openWin('window-settings');
-            if (el?.closest('#app-hello')) openWin('window-hello');
-            if (el?.closest('.close-btn')) closeAll();
+            if (!el) return;
+
+            // 打开应用
+            if (el.closest('#app-browser')) openWin('window-browser');
+            if (el.closest('#app-settings')) openWin('window-settings');
+            if (el.closest('#app-hello')) openWin('window-hello');
+            
+            // 关闭按钮
+            if (el.closest('.close-btn')) closeAll();
+            
+            // 浏览器里的假链接点击效果 (可选：可以在这里加个console log或者简单的视觉反馈)
+            if (el.closest('.search-result')) {
+                // 仅做视觉反馈，不跳转
+                const res = el.closest('.search-result');
+                res.style.transform = "scale(0.98)";
+                setTimeout(() => res.style.transform = "scale(1)", 150);
+            }
         }
 
         function openWin(id) {
-            document.getElementById('main-menu').style.opacity = '0';
-            document.getElementById('main-menu').style.pointerEvents = 'none';
-            setTimeout(() => document.getElementById(id).classList.add('open'), 200);
+            const menu = document.getElementById('main-menu');
+            menu.style.opacity = '0';
+            menu.style.pointerEvents = 'none';
+            // 稍微放大一点，模拟应用弹出的效果
+            menu.style.transform = 'scale(1.1)'; 
+            
+            setTimeout(() => {
+                document.getElementById(id).classList.add('open');
+                menu.style.transform = 'scale(1)'; // 重置状态供下次使用
+            }, 200);
         }
 
         function closeAll() {
             document.querySelectorAll('.window').forEach(w => w.classList.remove('open'));
             setTimeout(() => {
                 const m = document.getElementById('main-menu');
-                m.style.opacity = '1'; m.style.pointerEvents = 'all';
+                m.style.opacity = '1'; 
+                m.style.pointerEvents = 'all';
             }, 200);
         }
     </script>
