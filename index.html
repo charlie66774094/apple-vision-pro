@@ -262,7 +262,7 @@
             // 针对 MediaPipe 的逻辑：
             // 如果是 Right Hand (系统判定)：Val < 0 是手心, Val > 0 是手背
             // 如果是 Left Hand (系统判定)：Val > 0 是手心, Val < 0 是手背
-            if (handedness === 'Right') {
+            if (handedness === 'Left') {
                 isBack = val > 0;
             } else {
                 isBack = val < 0;
