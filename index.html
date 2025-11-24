@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Web Vision Pro Demo</title>
-    <!-- 引入 MediaPipe 库 -->
+    <title>Web Vision Pro - Smooth & Scroll</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -13,354 +12,379 @@
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
             background: #000;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
             overflow: hidden;
             height: 100dvh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* 模拟 Vision Pro 的透视背景感 */
-            background: radial-gradient(circle at center, #2a2a2a 0%, #000 100%);
+            /* 更深邃的空间背景 */
+            background: radial-gradient(circle at 50% 50%, #3a3a3a 0%, #111 60%, #000 100%);
         }
 
-        /* 隐藏视频元素，我们只需要它的数据 */
         .input_video { display: none; }
-        
-        /* 启动按钮 (iOS必须手动触发) */
+
+        /* 启动按钮 */
         #start-btn {
-            position: absolute;
-            z-index: 1000;
-            padding: 15px 30px;
-            background: white;
-            color: black;
-            border-radius: 30px;
-            font-size: 18px;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
+            position: absolute; z-index: 1000;
+            padding: 16px 32px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #000;
+            border-radius: 50px;
+            font-size: 18px; font-weight: 600;
+            border: none; cursor: pointer;
+            box-shadow: 0 0 20px rgba(255,255,255,0.3);
+            transition: transform 0.2s;
         }
+        #start-btn:active { transform: scale(0.95); }
 
-        /* 应用网格容器 */
+        /* 应用网格 */
         .app-grid {
-            display: flex;
-            gap: 40px;
-            z-index: 10;
-            transition: opacity 0.3s;
+            display: flex; gap: 50px; z-index: 10;
+            transition: opacity 0.3s, transform 0.3s;
+            perspective: 1000px; /* 增加透视感 */
         }
 
-        /* 应用图标样式 (类玻璃拟态) */
+        /* 3D 玻璃拟态图标 */
         .app-icon {
-            width: 100px;
-            height: 100px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 50%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            width: 110px; height: 110px;
+            /* 核心玻璃质感 */
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border-radius: 28px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
             color: white;
-            font-weight: 500;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: transform 0.2s, background 0.2s;
+            /* 3D 边缘光效和厚度感 */
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-bottom: 3px solid rgba(255, 255, 255, 0.1); /* 厚度模拟 */
+            box-shadow: 
+                0 15px 35px rgba(0,0,0,0.5), /* 投影 */
+                inset 0 0 0 1px rgba(255,255,255,0.1); /* 内发光 */
+            transition: all 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .app-icon.hovered {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.15) translateY(-10px); /* 悬停上浮 */
+            box-shadow: 
+                0 25px 50px rgba(0,0,0,0.6),
+                inset 0 0 20px rgba(255,255,255,0.2);
+            border-color: rgba(255, 255, 255, 0.8);
         }
         
-        /* 悬停状态（由JS控制） */
-        .app-icon.hovered {
-            background: rgba(255, 255, 255, 0.25);
-            transform: scale(1.1);
+        .app-icon:active {
+            transform: scale(0.95); /* 点击下沉 */
         }
 
-        .app-icon span { margin-top: 5px; font-size: 12px; pointer-events: none; }
-        .icon-img { font-size: 30px; margin-bottom: 5px; pointer-events: none; }
+        .icon-img { font-size: 38px; margin-bottom: 8px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
+        .app-icon span { font-size: 13px; font-weight: 500; letter-spacing: 0.5px; opacity: 0.9; }
 
-        /* 虚拟光标 (灰圈) */
+        /* 虚拟光标 - 更小更亮 */
         #cursor {
-            position: fixed;
-            top: 0; left: 0;
-            width: 30px;
-            height: 30px;
-            background: rgba(200, 200, 200, 0.6);
+            position: fixed; top: 0; left: 0;
+            width: 20px; height: 20px;
+            background: rgba(255, 255, 255, 0.8);
             border-radius: 50%;
-            pointer-events: none; /* 让点击穿透光标 */
+            pointer-events: none;
             transform: translate(-50%, -50%);
             z-index: 999;
-            box-shadow: 0 0 10px rgba(255,255,255,0.3);
-            transition: width 0.1s, height 0.1s, background 0.1s;
+            box-shadow: 0 0 15px rgba(255,255,255,0.6);
+            transition: width 0.15s, height 0.15s, background 0.15s;
+            mix-blend-mode: difference; /* 智能反色，保证在亮背景也能看见 */
         }
-
-        /* 捏合时的光标状态 */
         #cursor.clicking {
-            width: 20px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.9);
+            width: 12px; height: 12px;
+            background: #00ff00; /* 点击反馈变绿 */
+            box-shadow: 0 0 20px #00ff00;
         }
 
-        /* 打开的应用窗口 */
+        /* 窗口通用样式 */
         .window {
-            position: fixed;
-            top: 50%; left: 50%;
+            position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%) scale(0.9);
-            width: 80%;
-            max-width: 400px;
-            height: 300px;
-            background: rgba(30, 30, 30, 0.85);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            display: none; /* 默认隐藏 */
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            z-index: 100;
+            width: 90%; max-width: 420px; height: 500px;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+            display: none; flex-direction: column;
             opacity: 0;
-            transition: opacity 0.3s, transform 0.3s;
+            transition: opacity 0.3s, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+            padding: 20px;
+            color: #fff;
         }
-
-        .window.open {
-            display: flex;
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
+        .window.open { display: flex; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        
+        .window-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 10px;
         }
+        .window-title { font-size: 20px; font-weight: 600; }
 
-        .close-btn {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background: #ff3b30;
-            border-radius: 20px;
-            border: none;
-            color: white;
-            font-weight: bold;
+        /* 滚动容器 */
+        .scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
+            padding: 10px 0;
         }
         
-        .close-btn.hovered { transform: scale(1.1); }
+        /* 滚动条隐藏但保留功能 */
+        .scroll-container::-webkit-scrollbar { width: 4px; }
+        .scroll-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
 
-        /* 调试信息 */
-        #status {
-            position: absolute;
-            bottom: 20px;
-            color: rgba(255,255,255,0.4);
-            font-size: 12px;
+        /* 设置项列表 */
+        .setting-item {
+            padding: 15px;
+            margin: 8px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            font-size: 16px;
+            display: flex; align-items: center;
+            border: 1px solid transparent;
+            transition: background 0.2s;
         }
+        .setting-item.hovered { background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255,255,255,0.3); }
+
+        .close-btn {
+            margin-top: 15px; padding: 12px;
+            background: rgba(60, 60, 60, 0.8);
+            color: white; border: none; border-radius: 25px;
+            font-weight: 600; cursor: pointer; width: 100%;
+            transition: background 0.2s;
+        }
+        .close-btn.hovered { background: #fff; color: #000; }
+
+        #status { position: absolute; bottom: 20px; color: rgba(255,255,255,0.3); font-size: 12px; pointer-events: none;}
     </style>
 </head>
 <body>
 
-    <!-- 视频源 -->
     <video class="input_video" playsinline></video>
-
-    <!-- 启动按钮 -->
-    <button id="start-btn">进入空间体验</button>
-
-    <!-- 虚拟光标 -->
+    <button id="start-btn">进入空间</button>
     <div id="cursor"></div>
 
-    <!-- 应用列表 -->
+    <!-- 主菜单 -->
     <div class="app-grid" id="main-menu">
         <div class="app-icon" id="app-settings">
             <div class="icon-img">⚙️</div>
             <span>设置</span>
         </div>
         <div class="app-icon" id="app-hello">
-            <div class="icon-img">👋</div>
-            <span>Hello</span>
+            <div class="icon-img">🌍</div>
+            <span>探索</span>
         </div>
     </div>
 
-    <!-- 应用窗口: 设置 -->
+    <!-- 设置窗口 -->
     <div class="window" id="window-settings">
-        <h2>设置</h2>
-        <p>这里是设置界面。</p>
-        <p>Vision Pro Web Demo v1.0</p>
-        <button class="close-btn" id="close-settings">关闭</button>
+        <div class="window-header">
+            <span class="window-title">系统设置</span>
+            <span>🔋 100%</span>
+        </div>
+        <!-- 可滚动区域 -->
+        <div class="scroll-container" id="settings-scroll">
+            <div class="setting-item">📶 无线局域网</div>
+            <div class="setting-item">🔵 蓝牙</div>
+            <div class="setting-item">🎨 显示与亮度</div>
+            <div class="setting-item">🔊 声音与触感</div>
+            <div class="setting-item">🔒 面容 ID 与密码</div>
+            <div class="setting-item">🌙 专注模式</div>
+            <div class="setting-item">⏳ 屏幕使用时间</div>
+            <div class="setting-item">⚙️ 通用</div>
+            <div class="setting-item">☁️ iCloud</div>
+            <div class="setting-item">🎵 音乐</div>
+            <div class="setting-item">📷 相机</div>
+            <div class="setting-item">🖼️ 照片</div>
+        </div>
+        <button class="close-btn" id="close-settings">关闭窗口</button>
     </div>
 
-    <!-- 应用窗口: Hello -->
+    <!-- Hello 窗口 -->
     <div class="window" id="window-hello">
-        <h1>Hello World</h1>
-        <p>欢迎来到空间计算网页版！</p>
-        <button class="close-btn" id="close-hello">关闭</button>
+        <div class="window-header">
+            <span class="window-title">Hello World</span>
+        </div>
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; text-align:center;">
+            <p style="font-size: 18px; line-height: 1.6;">欢迎体验<br>Web Vision OS<br><br>👈 尝试捏住滚动左边的列表</p>
+        </div>
+        <button class="close-btn" id="close-hello">关闭窗口</button>
     </div>
 
-    <div id="status">等待相机启动...</div>
+    <div id="status">等待相机权限...</div>
 
     <script>
-        const videoElement = document.getElementsByClassName('input_video')[0];
         const cursor = document.getElementById('cursor');
         const startBtn = document.getElementById('start-btn');
         const statusText = document.getElementById('status');
-        const mainMenu = document.getElementById('main-menu');
-
-        let isCameraRunning = false;
-        let lastPinchTime = 0;
+        
+        // 状态变量
+        let cursorX = window.innerWidth / 2, cursorY = window.innerHeight / 2;
+        let targetX = window.innerWidth / 2, targetY = window.innerHeight / 2;
         let isPinching = false;
+        let isDragging = false;
+        
+        // 滚动逻辑变量
+        let dragStartY = 0;
+        let activeScrollElement = null;
+        let initialScrollTop = 0;
 
-        // 平滑移动参数
-        let cursorX = window.innerWidth / 2;
-        let cursorY = window.innerHeight / 2;
-        let targetX = window.innerWidth / 2;
-        let targetY = window.innerHeight / 2;
-        const lerpSpeed = 0.2; // 光标跟随速度 (0.1 - 0.5)
-
-        // 初始化 MediaPipe Hands
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-        }});
-
+        // 配置参数
+        const LERP_SPEED = 0.45; // 提高跟手速度 (之前是0.2)
+        const PINCH_THRESHOLD = 0.06; // 捏合灵敏度
+        
+        // MediaPipe 初始化
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7
+            minDetectionConfidence: 0.6, // 降低一点置信度要求以提高响应速度
+            minTrackingConfidence: 0.6
         });
-
         hands.onResults(onResults);
 
-        // 初始化摄像头
-        const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-            },
-            width: 640,
-            height: 480,
-            facingMode: "user" // 强制前置摄像头
+        // 摄像头
+        const camera = new Camera(document.querySelector('.input_video'), {
+            onFrame: async () => { await hands.send({image: document.querySelector('.input_video')}); },
+            width: 640, height: 480, facingMode: "user"
         });
 
-        // 点击开始按钮 (iOS必须)
         startBtn.addEventListener('click', () => {
             startBtn.style.display = 'none';
-            statusText.innerText = "正在启动摄像头...";
-            camera.start()
-                .then(() => {
-                    statusText.innerText = "伸出手掌，食指控制光标，捏合点击";
-                    isCameraRunning = true;
-                })
-                .catch(err => {
-                    statusText.innerText = "摄像头启动失败: " + err;
-                    startBtn.style.display = 'block';
-                });
+            statusText.innerText = "启动中...";
+            camera.start().then(() => statusText.innerText = "准备就绪").catch(e => statusText.innerText = "失败:"+e);
         });
 
-        // 处理手部追踪结果
         function onResults(results) {
-            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-                return;
-            }
+            if (!results.multiHandLandmarks?.length) return;
 
             const landmarks = results.multiHandLandmarks[0];
-            
-            // 获取关键点：8号是食指指尖，4号是拇指指尖
             const indexTip = landmarks[8];
             const thumbTip = landmarks[4];
 
-            // 1. 移动光标逻辑
-            // MediaPipe 坐标是 0-1，需要映射到屏幕像素
-            // 注意：自拍模式下x轴是镜像的，所以用 (1 - x)
-            const rawX = (1 - indexTip.x) * window.innerWidth;
-            const rawY = indexTip.y * window.innerHeight;
+            // 1. 优化后的光标移动 (增加速度倍率)
+            // 将手部移动范围映射放大，这样手不用动太多，光标就能全屏跑
+            const sensitivity = 1.3; // 移动增益
+            let rawX = (1 - indexTip.x) * window.innerWidth;
+            let rawY = indexTip.y * window.innerHeight;
+            
+            // 简单的中心点偏移校正，让手在屏幕中央时光标也在中央
+            rawX = (rawX - window.innerWidth/2) * sensitivity + window.innerWidth/2;
+            rawY = (rawY - window.innerHeight/2) * sensitivity + window.innerHeight/2;
 
-            // 平滑插值 (Lerp) 减少抖动
-            targetX = rawX;
-            targetY = rawY;
-            cursorX += (targetX - cursorX) * lerpSpeed;
-            cursorY += (targetY - cursorY) * lerpSpeed;
+            // 限制光标不出屏幕
+            rawX = Math.max(0, Math.min(window.innerWidth, rawX));
+            rawY = Math.max(0, Math.min(window.innerHeight, rawY));
+
+            // 高速插值
+            cursorX += (rawX - cursorX) * LERP_SPEED;
+            cursorY += (rawY - cursorY) * LERP_SPEED;
 
             cursor.style.left = `${cursorX}px`;
             cursor.style.top = `${cursorY}px`;
 
-            // 2. 计算捏合 (Pinch) 距离
-            // 简单的欧几里得距离 (只看 x 和 y，忽略深度 z 以简化)
-            const dx = indexTip.x - thumbTip.x;
-            const dy = indexTip.y - thumbTip.y;
-            const distance = Math.sqrt(dx*dx + dy*dy);
+            // 2. 捏合检测
+            const distance = Math.sqrt(Math.pow(indexTip.x - thumbTip.x, 2) + Math.pow(indexTip.y - thumbTip.y, 2));
+            const currentlyPinching = distance < PINCH_THRESHOLD;
 
-            // 阈值：根据手离摄像头的距离，这个值可能需要微调，0.05 比较通用
-            const pinchThreshold = 0.05; 
-
-            if (distance < pinchThreshold) {
+            // 3. 交互状态机
+            if (currentlyPinching) {
                 if (!isPinching) {
-                    // 刚开始捏合 (Trigger Click)
+                    // === 刚开始捏合 (Touch Start) ===
                     isPinching = true;
                     cursor.classList.add('clicking');
-                    handleInteraction(cursorX, cursorY);
+                    
+                    // 检查是否在可滚动物体上
+                    const elementBelow = document.elementFromPoint(cursorX, cursorY);
+                    // 向上查找最近的 scroll-container
+                    const scrollable = elementBelow?.closest('.scroll-container');
+                    
+                    if (scrollable) {
+                        isDragging = true;
+                        activeScrollElement = scrollable;
+                        dragStartY = cursorY; // 记录捏合时的光标Y位置
+                        initialScrollTop = scrollable.scrollTop;
+                    } else {
+                        // 普通点击触发
+                        handleTap(cursorX, cursorY);
+                    }
+                } else {
+                    // === 保持捏合 (Touch Move / Drag) ===
+                    if (isDragging && activeScrollElement) {
+                        // 计算垂直移动距离
+                        const deltaY = cursorY - dragStartY;
+                        // 更新滚动条 (乘以系数让滚动更跟手，负号是因为向上移要向下滚)
+                        activeScrollElement.scrollTop = initialScrollTop - (deltaY * 2.5);
+                    }
                 }
             } else {
-                // 松开
-                isPinching = false;
-                cursor.classList.remove('clicking');
+                if (isPinching) {
+                    // === 松开捏合 (Touch End) ===
+                    isPinching = false;
+                    isDragging = false;
+                    activeScrollElement = null;
+                    cursor.classList.remove('clicking');
+                }
             }
 
-            // 3. 处理悬停效果 (Hover)
-            handleHover(cursorX, cursorY);
+            // 4. 悬停效果 (只在非拖拽时触发)
+            if (!isDragging) {
+                handleHover(cursorX, cursorY);
+            }
         }
 
-        // 处理悬停样式
         function handleHover(x, y) {
-            const elements = document.elementsFromPoint(x, y);
-            // 清除所有悬停状态
+            // 清理旧的
             document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
+            // 添加新的
+            const el = document.elementFromPoint(x, y);
+            if (!el) return;
             
-            // 添加新的悬停状态
-            for (let el of elements) {
-                if (el.classList.contains('app-icon') || el.classList.contains('close-btn')) {
-                    el.classList.add('hovered');
-                    break; // 只高亮最上面的一个
-                }
-            }
+            // 支持图标、按钮、列表项的悬停
+            const target = el.closest('.app-icon, .close-btn, .setting-item');
+            if (target) target.classList.add('hovered');
         }
 
-        // 处理交互 (点击)
-        function handleInteraction(x, y) {
-            // 获取光标位置的所有元素
-            const elements = document.elementsFromPoint(x, y);
+        function handleTap(x, y) {
+            const el = document.elementFromPoint(x, y);
+            if (!el) return;
+
+            // 打开应用
+            if (el.closest('#app-settings')) openWindow('window-settings');
+            if (el.closest('#app-hello')) openWindow('window-hello');
             
-            for (let el of elements) {
-                // 如果点击了设置图标
-                if (el.id === 'app-settings') {
-                    openWindow('window-settings');
-                    return;
-                }
-                // 如果点击了Hello图标
-                if (el.id === 'app-hello') {
-                    openWindow('window-hello');
-                    return;
-                }
-                // 如果点击了关闭按钮
-                if (el.classList.contains('close-btn')) {
-                    closeAllWindows();
-                    return;
-                }
-            }
+            // 关闭按钮
+            if (el.closest('.close-btn')) closeAllWindows();
         }
 
         function openWindow(id) {
-            mainMenu.style.opacity = '0';
+            document.getElementById('main-menu').style.opacity = '0';
+            document.getElementById('main-menu').style.pointerEvents = 'none';
             setTimeout(() => {
-                mainMenu.style.display = 'none';
                 const win = document.getElementById(id);
                 win.classList.add('open');
-            }, 300);
+            }, 200);
         }
 
         function closeAllWindows() {
-            document.querySelectorAll('.window').forEach(w => {
-                w.classList.remove('open');
-            });
-            
-            mainMenu.style.display = 'flex';
-            // 小延迟让淡入动画好看
+            document.querySelectorAll('.window').forEach(w => w.classList.remove('open'));
             setTimeout(() => {
-                mainMenu.style.opacity = '1';
-            }, 50);
+                const menu = document.getElementById('main-menu');
+                menu.style.opacity = '1';
+                menu.style.pointerEvents = 'all';
+            }, 200);
         }
-
     </script>
 </body>
 </html>
